@@ -247,6 +247,19 @@ RSpec.describe Portolan::Dataset do
   end
 
   describe '.check_columns!' do
+    let(:logbook_entries) do
+      logbook = Class.new(ActiveRecord::Base) do
+        self.table_name = 'voyages'
+        self.primary_key = %w[ship_id harbor]
+      end
+      Class.new(described_class) do
+        description 'One row per logbook entry.'
+        model logbook
+        dimension :fate, 'how the voyage ended', buckets: { lost: -> { logbook.where(lost: true) } }
+        measure :entries, 'number of entries'
+      end
+    end
+
     context 'with a measure column the model lacks' do
       it 'raises' do
         voyages.measure :distance, 'distance sailed', sum: :leauges
@@ -263,6 +276,11 @@ RSpec.describe Portolan::Dataset do
         expect { voyages.check_columns! }
           .to raise_error(ArgumentError, /dimension `harbour`: `harbour` is not a column of `Voyage`/)
       end
+    end
+
+    it 'raises for buckets on a model with a composite primary key' do
+      expect { logbook_entries.check_columns! }
+        .to raise_error(ArgumentError, /buckets need a model with a single-column primary key; `voyages` has/)
     end
 
     it 'accepts an aliased attribute' do

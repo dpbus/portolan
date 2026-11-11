@@ -6,15 +6,18 @@ module Portolan
       PARAMS = %w[dataset filters limit].freeze
       ROW_LIMIT = 50
       UNSCOPED = %i[order select limit offset includes preload eager_load].freeze
+      INTEGER = Type::Integer.new
 
-      attr_reader :dataset, :filters, :errors
+      attr_reader :errors
 
       def initialize(registry, params, context:)
         @registry = registry
-        @params = params
+        params = normalize(params)
+        @shape_error = !params.is_a?(Hash)
+        @params = @shape_error ? {} : params
         @context = context
         @filters = []
-        resolve if params.is_a?(Hash)
+        resolve
         @errors = []
         validate
         @errors.freeze
@@ -23,28 +26,32 @@ module Portolan
 
       def valid? = errors.empty?
 
-      TIMEOUT_ERROR = 'the query took too long; filter to a shorter period or group by fewer dimensions'
-
       def call
         return Result.new(request:, errors:) unless valid?
 
         relation = dataset.relation_for(@context).unscope(*UNSCOPED)
         Guard.run(relation.klass) { answer(filtered(relation)) }
-      rescue ActiveRecord::QueryCanceled
-        Result.new(request:, errors: [TIMEOUT_ERROR])
-      rescue ActiveRecord::StatementInvalid => e
-        raise unless e.cause.is_a?(PG::DataException)
-
-        Result.new(request:, errors: [data_error(e.cause)])
+      rescue Refused => e
+        Result.new(request:, errors: [e.message])
       end
 
       private
 
+      attr_reader :dataset, :filters
+
+      def normalize(params)
+        params = params.to_unsafe_h if params.respond_to?(:to_unsafe_h)
+        case params
+        when ::Hash then params.to_h { |key, value| [key.to_s, normalize(value)] }
+        when ::Array then params.map { |value| normalize(value) }
+        when ::Symbol then params.to_s
+        else params
+        end
+      end
+
       def resolve
         @dataset = @registry[@params['dataset']]
-        return unless @dataset
-
-        @filters = filter_params.map { |params| Filter.new(@dataset, params) }
+        @filters = filter_params.map { |params| Filter.new(@dataset, params) } if @dataset
         resolve_request
       end
 
@@ -64,19 +71,21 @@ module Portolan
       def validate_request; end
 
       def validate_shape
-        errors << 'request must be an object' unless @params.is_a?(Hash)
+        errors << 'request must be an object' if @shape_error
       end
 
       def validate_keys
         unknown = @params.keys - self.class::PARAMS
-        errors << "unknown key #{quoted(unknown)}; allowed: #{quoted(self.class::PARAMS)}" if unknown.any?
+        return if unknown.empty?
+
+        errors << "unknown key #{Portolan.quoted(unknown)}; allowed: #{Portolan.quoted(self.class::PARAMS)}"
       end
 
       def validate_dataset
         return if dataset
 
         problem = @params['dataset'] ? "unknown dataset `#{@params['dataset']}`" : 'dataset is required'
-        errors << "#{problem}; allowed: #{quoted(@registry.names)}"
+        errors << "#{problem}; allowed: #{Portolan.quoted(@registry.names)}"
       end
 
       def validate_filters
@@ -89,18 +98,11 @@ module Portolan
       end
 
       def validate_limit
-        return if @params['limit'].nil?
-        return if Type::Integer.new.errors_for(@params['limit']).empty? && (1..ROW_LIMIT).cover?(limit)
-
-        errors << "limit must be an integer from 1 to #{ROW_LIMIT}"
+        errors << "limit must be an integer from 1 to #{ROW_LIMIT}" unless (1..ROW_LIMIT).cover?(limit)
       end
 
       def filter_params = @params['filters'].is_a?(::Array) ? @params['filters'] : []
-      def limit = @params['limit'].nil? ? ROW_LIMIT : Type::Integer.new.cast(@params['limit'])
-
-      def data_error(error)
-        "the database could not use a value: #{error.message.lines.first.sub(/\AERROR:\s*/, '').strip}"
-      end
+      def limit = @params['limit'].nil? ? ROW_LIMIT : INTEGER.cast(@params['limit'])
 
       def filtered(relation) = filters.reduce(relation) { |current, filter| filter.apply(current) }
 
@@ -108,8 +110,7 @@ module Portolan
         (dimensions + filters.map(&:dimension)).uniq.to_h { |dimension| [dimension.name, dimension.definition] }
       end
 
-      def request = @params.is_a?(Hash) ? { dataset: @params['dataset']&.to_s } : {}
-      def quoted(items) = items.map { |item| "`#{item}`" }.join(', ')
+      def request = { dataset: @params['dataset'] }
     end
   end
 end

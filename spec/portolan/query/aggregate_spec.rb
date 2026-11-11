@@ -154,10 +154,11 @@ RSpec.describe Portolan::Query::Aggregate do
       expect(errors(request(measure: 'cargo', limit: 0)).size).to eq(2)
     end
 
-    it 'reports a query that took too long' do
-      allow(Portolan::Query::Guard).to receive(:run).and_raise(ActiveRecord::QueryCanceled)
+    it 'reports a query the guard refused, such as one that took too long' do
+      allow(Portolan::Query::Guard).to receive(:run)
+        .and_raise(Portolan::Query::Refused, Portolan::Query::Guard::TIMEOUT_ERROR)
 
-      expect(errors(request)).to eq([Portolan::Query::Base::TIMEOUT_ERROR])
+      expect(errors(request)).to eq([Portolan::Query::Guard::TIMEOUT_ERROR])
     end
 
     it 'returns a result that is not a success' do

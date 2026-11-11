@@ -2,6 +2,7 @@
 
 require 'active_record'
 require 'active_support'
+require 'active_support/core_ext/enumerable'
 require 'active_support/core_ext/object/blank'
 require 'active_support/core_ext/time/calculations'
 
@@ -27,4 +28,5 @@ require_relative 'portolan/query/base'
 require_relative 'portolan/query/aggregate'
 
 module Portolan
+  def self.quoted(items) = items.map { |item| "`#{item}`" }.join(', ')
 end

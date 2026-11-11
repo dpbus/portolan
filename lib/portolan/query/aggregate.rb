@@ -9,14 +9,25 @@ module Portolan
       GROUP_LIMIT = 10_000
       TOO_MANY_GROUPS = "more than #{GROUP_LIMIT} groups; filter or group by fewer dimensions".freeze
 
-      attr_reader :measure, :group_dimensions, :time_dimension
-
       private
 
+      attr_reader :measure, :group_names, :group_dimensions, :time_dimension
+
       def resolve_request
-        @measure = dataset.measures[@params['measure'].to_s]
-        @group_dimensions = group_names.filter_map { |name| dataset.dimensions[name] }
+        @group_names = parse_group_by
+        return unless dataset
+
+        @measure = dataset.measures[@params['measure']]
+        @group_dimensions = Array(group_names).filter_map { |name| dataset.dimensions[name] }
         @time_dimension = @group_dimensions.find(&:time?)
+      end
+
+      def parse_group_by
+        case @params['group_by']
+        when nil then []
+        when ::String then [@params['group_by']]
+        when ::Array then @params['group_by'].map(&:to_s)
+        end
       end
 
       def validate_request
@@ -29,14 +40,14 @@ module Portolan
         return if measure
 
         problem = @params['measure'] ? "unknown measure `#{@params['measure']}`" : 'measure is required'
-        errors << "#{problem}; allowed: #{quoted(dataset.measures.keys)}"
+        errors << "#{problem}; allowed: #{Portolan.quoted(dataset.measures.keys)}"
       end
 
       def validate_group_by
-        return errors << 'group_by must be a list of dimension names' unless group_by_list?
+        return errors << 'group_by must be a list of dimension names' unless group_names
 
         (group_names - dataset.dimensions.keys).each do |name|
-          errors << "unknown dimension `#{name}` in group_by; allowed: #{quoted(dataset.dimensions.keys)}"
+          errors << "unknown dimension `#{name}` in group_by; allowed: #{Portolan.quoted(dataset.dimensions.keys)}"
         end
         group_names.tally.each { |name, count| errors << "group_by names `#{name}` twice" if count > 1 }
         errors << "group_by takes at most #{MAX_GROUPS} dimensions" if group_names.size > MAX_GROUPS
@@ -55,34 +66,18 @@ module Portolan
       end
 
       def validate_period
-        if time_dimension.nil?
-          errors << 'period only applies when grouping by a date dimension' if period
-        elsif period.nil?
-          errors << "period is required when grouping by `#{time_dimension.name}`; " \
-                    "allowed: #{quoted(time_dimension.periods)}"
-        elsif time_dimension.periods.exclude?(period)
-          errors << "period `#{period}` does not apply to `#{time_dimension.name}`; " \
-                    "allowed: #{quoted(time_dimension.periods)}"
-        end
+        return errors << 'period only applies when grouping by a date dimension' if period && !time_dimension
+        return if time_dimension.nil? || time_dimension.periods.include?(period)
+
+        problem = period ? "period `#{period}` does not apply to" : 'period is required when grouping by'
+        errors << "#{problem} `#{time_dimension.name}`; allowed: #{Portolan.quoted(time_dimension.periods)}"
       end
 
-      def group_by_list?
-        @params['group_by'].nil? || [::String, ::Symbol, ::Array].any? { |kind| @params['group_by'].is_a?(kind) }
-      end
-
-      def group_names
-        case @params['group_by']
-        when ::String, ::Symbol then [@params['group_by'].to_s]
-        when ::Array then @params['group_by'].map(&:to_s)
-        else []
-        end
-      end
-
-      def period = @params['period']&.to_s
+      def period = @params['period']
 
       def answer(scope)
         rows = measured_rows(scope)
-        return Result.new(request:, errors: [TOO_MANY_GROUPS]) if rows.size > GROUP_LIMIT
+        raise Refused, TOO_MANY_GROUPS if rows.size > GROUP_LIMIT
 
         rows = sorted(rows)
         Result.new(request:, rows: trimmed(rows), definitions:, total_rows: rows.size)
@@ -94,8 +89,9 @@ module Portolan
 
         bucket_combinations(bucket_dimensions).each do |combination|
           narrowed = combination.reduce(scope) { |current, (_dimension, bucket)| bucket.apply(current) }
+          bucket_labels = combination.to_h { |dimension, bucket| [dimension.name, bucket.name] }
           grouped_values(narrowed, column_dimensions).each do |keys, value|
-            rows << row(combination, column_dimensions.zip(keys), value)
+            rows << row(bucket_labels, column_dimensions.zip(keys), value)
           end
           break if rows.size > GROUP_LIMIT
         end
@@ -125,55 +121,45 @@ module Portolan
         measure.call(grouped.limit(GROUP_LIMIT + 1)).map { |keys, value| [dimensions.one? ? [keys] : keys, value] }
       end
 
-      def group_expression(scope, dimension)
-        column = dimension.column(scope)
-        dimension.time? ? dimension.type.truncate(column, period) : column
-      end
+      def group_expression(scope, dimension) = dimension.type.group(dimension.column(scope), period)
 
-      def row(combination, keyed, value)
-        labels = combination.to_h { |dimension, bucket| [dimension.name, bucket.name] }
-        keyed.each { |dimension, key| labels[dimension.name] = label(dimension, key) }
+      def row(bucket_labels, keyed, value)
+        labels = bucket_labels.merge(keyed.to_h { |dimension, key| [dimension.name, label(dimension, key)] })
         grouped = group_dimensions.to_h { |dimension| [dimension.name, labels[dimension.name]] }
-        grouped.merge(measure.name => value.is_a?(::BigDecimal) ? value.to_f : value)
+        grouped.merge(measure.name => measure.label(value))
       end
 
       def label(dimension, key) = key.nil? ? nil : dimension.type.label(key, period)
 
       def sorted(rows)
-        return rows.sort_by { |row| series_order(row) } if time_dimension
-
-        rows.sort_by { |row| [-row[measure.name].to_f, row.values.map(&:to_s)] }
+        rows.sort_by { |row| [*period_order(row), -row[measure.name].to_f, row.values.map(&:to_s)] }
       end
 
-      def series_order(row)
+      def period_order(row)
+        return [] unless time_dimension
+
         label = row[time_dimension.name]
-        [label.nil? ? 0 : 1, label.to_s, -row[measure.name].to_f, row.values.map(&:to_s)]
+        [label.nil? ? 0 : 1, label.to_s]
       end
 
       def trimmed(rows)
         return rows.first(limit) unless time_dimension
 
-        periods = rows.chunk_while { |earlier, later| earlier[time_dimension.name] == later[time_dimension.name] }
+        periods = rows.chunk_while { |earlier, later| earlier[time_dimension.name] == later[time_dimension.name] }.to_a
         kept = []
         periods.reverse_each do |period_rows|
-          if kept.size + period_rows.size > limit
-            kept = period_rows.first(limit) if kept.empty?
-            break
-          end
+          break if kept.size + period_rows.size > limit
+
           kept = period_rows + kept
         end
-        kept
+        kept.empty? ? periods.last.to_a.first(limit) : kept
       end
 
       def definitions
         definitions_for(group_dimensions).merge(measure.name => { description: measure.description })
       end
 
-      def request
-        return super unless @params.is_a?(Hash)
-
-        super.merge(measure: @params['measure']&.to_s, group_by: group_names.presence, period:)
-      end
+      def request = super.merge(measure: @params['measure'], group_by: Array(group_names).presence, period:)
     end
   end
 end

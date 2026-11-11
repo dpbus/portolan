@@ -8,14 +8,10 @@ module Portolan
       OPERATORS = %w[eq in gt lt between].freeze
 
       def name = 'decimal'
-      def operators = OPERATORS
-      def errors_for(value) = parse(value) ? [] : ["`#{value}` is not a number"]
-      def cast(value) = parse(value)
+      def errors_for(value) = cast(value) ? [] : ["`#{value}` is not a number"]
       def label(value, _period = nil) = value.to_f
 
-      private
-
-      def parse(value)
+      def cast(value)
         number = case value
                  when ::Integer, ::BigDecimal then BigDecimal(value)
                  when ::Float then BigDecimal(value.to_s)

@@ -63,14 +63,14 @@ RSpec.describe Portolan::Query::Guard do
         .to raise_error(ActiveRecord::ReadOnlyError)
     end
 
-    it 'cancels a statement that runs too long' do
+    it 'refuses a statement that runs too long, with a message for the caller' do
       expect { described_class.run(Voyage, timeout_ms: 10) { Voyage.connection.execute('SELECT pg_sleep(0.2)') } }
-        .to raise_error(ActiveRecord::QueryCanceled)
+        .to raise_error(Portolan::Query::Refused, described_class::TIMEOUT_ERROR)
     end
 
     it 'leaves the outer transaction usable after a cancelled statement' do
       expect { described_class.run(Voyage, timeout_ms: 10) { Voyage.connection.execute('SELECT pg_sleep(0.2)') } }
-        .to raise_error(ActiveRecord::QueryCanceled)
+        .to raise_error(Portolan::Query::Refused)
 
       expect(Voyage.count).to eq(0)
     end

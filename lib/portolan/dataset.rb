@@ -34,12 +34,13 @@ module Portolan
       end
 
       def example(question, query)
+        @examples = nil
         example_list << Example.new(question:, query: query.freeze)
       end
 
-      def dimensions = dimension_list.dup.freeze
-      def measures = measure_list.dup.freeze
-      def examples = example_list.dup.freeze
+      def dimensions = @dimensions ||= dimension_list.dup.freeze
+      def measures = @measures ||= measure_list.dup.freeze
+      def examples = @examples ||= example_list.dup.freeze
 
       def describe
         {
@@ -74,19 +75,21 @@ module Portolan
       def add(list, item, kind)
         invalid!("#{kind} `#{item.name}` is declared twice") if list.key?(item.name)
         invalid!("`#{item.name}` names both a dimension and a measure") if declared_names.include?(item.name)
+        @dimensions = @measures = nil
         list[item.name] = item
       end
 
       def declared_names = dimension_list.keys + measure_list.keys
 
       def check_measure_column!(measure)
-        return if measure.column.nil? || attribute?(measure.column)
+        return if measure.column.nil? || model.has_attribute?(measure.column)
 
         invalid!("measure `#{measure.name}`: `#{measure.column}` is not a column of `#{model.name}`")
       end
 
       def check_dimension_column!(dimension)
-        return if dimension.expression || dimension.buckets? || attribute?(dimension.name)
+        return check_bucket_key!(dimension) if dimension.buckets?
+        return if dimension.expression || model.has_attribute?(dimension.name)
 
         invalid!("dimension `#{dimension.name}`: `#{dimension.name}` is not a column of `#{model.name}`; " \
                  'add an `expression` to read it another way')
@@ -113,7 +116,12 @@ module Portolan
         reflection.klass
       end
 
-      def attribute?(name) = model.attribute_names.include?(name) || model.attribute_alias?(name)
+      def check_bucket_key!(dimension)
+        return if model.primary_key.is_a?(::String)
+
+        invalid!("dimension `#{dimension.name}`: buckets need a model with a single-column primary key; " \
+                 "`#{model.table_name}` has #{Portolan.quoted(Array(model.primary_key))}")
+      end
 
       def invalid!(problem)
         raise ArgumentError, "dataset `#{name || 'anonymous'}`: #{problem}"

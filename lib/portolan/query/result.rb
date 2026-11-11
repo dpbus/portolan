@@ -25,8 +25,7 @@ module Portolan
       end
 
       def to_h
-        details = { truncated: truncated? || nil, notes:, definitions:, errors: }
-        details = details.reject { |_, value| value.nil? || (value.respond_to?(:empty?) && value.empty?) }
+        details = { truncated: truncated?, notes:, definitions:, errors: }.compact_blank
         success? ? { **request, rows:, **details } : { **request, **details }
       end
 

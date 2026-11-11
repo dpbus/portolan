@@ -63,16 +63,6 @@ RSpec.describe Portolan::Dimension::Bucket do
     it 'never adds rows the scope left out' do
       expect(lost.apply(Voyage.where(lost: false))).to be_empty
     end
-
-    it 'raises for a model with a composite primary key' do
-      logbook = Class.new(ActiveRecord::Base) do
-        self.table_name = 'voyages'
-        self.primary_key = %w[ship_id harbor]
-      end
-
-      expect { lost.apply(logbook.all) }.to raise_error(ArgumentError,
-        'bucket `lost`: needs a model with a single-column primary key; `voyages` has `ship_id`, `harbor`')
-    end
   end
 
   describe 'checks' do

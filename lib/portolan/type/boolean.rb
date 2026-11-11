@@ -6,7 +6,6 @@ module Portolan
       OPERATORS = %w[eq].freeze
 
       def name = 'boolean'
-      def operators = OPERATORS
       def errors_for(value) = [true, false, 'true', 'false'].include?(value) ? [] : ["`#{value}` is not true or false"]
       def cast(value) = [true, 'true'].include?(value)
     end

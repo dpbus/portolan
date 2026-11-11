@@ -18,8 +18,6 @@ module Portolan
 
       def apply(scope)
         primary_key = scope.klass.primary_key
-        raise ArgumentError, composite_key_message(scope.klass) unless primary_key.is_a?(::String)
-
         scope.where(primary_key => where.call.select(primary_key))
       end
 
@@ -27,13 +25,8 @@ module Portolan
 
       def check!(options)
         unknown = options.keys - OPTIONS
-        invalid!("unknown option `#{unknown.map(&:inspect).join('`, `')}`") if unknown.any?
+        invalid!("unknown option #{Portolan.quoted(unknown.map(&:inspect))}") if unknown.any?
         invalid!('needs a `where` that responds to `call`') unless options[:where].respond_to?(:call)
-      end
-
-      def composite_key_message(model)
-        keys = Array(model.primary_key).map { |key| "`#{key}`" }.join(', ')
-        "bucket `#{name}`: needs a model with a single-column primary key; `#{model.table_name}` has #{keys}"
       end
 
       def invalid!(problem)

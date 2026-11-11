@@ -18,7 +18,7 @@ module Portolan
       freeze
     end
 
-    def values = type.is_a?(Type::Enum) ? type.values : nil
+    def values = type.values
     def operators = type.operators
     def periods = type.periods
     def time? = periods.any?
@@ -31,8 +31,8 @@ module Portolan
         description:,
         operators:,
         values:,
-        periods: (periods if time?),
-        buckets: (bucket_descriptions.presence if buckets?),
+        periods: periods.presence,
+        buckets: bucket_descriptions.presence,
       }.compact
     end
 
@@ -45,7 +45,7 @@ module Portolan
     end
 
     def definition
-      { description:, buckets: (bucket_descriptions.presence if buckets?) }.compact
+      { description:, buckets: bucket_descriptions.presence }.compact
     end
 
     private
@@ -87,14 +87,14 @@ module Portolan
     end
 
     def bucket_descriptions
-      buckets.values.select(&:description).to_h { |bucket| [bucket.name, bucket.description] }
+      buckets.to_h.values.select(&:description).to_h { |bucket| [bucket.name, bucket.description] }
     end
 
     def check_options!(option_names, description)
       raise ArgumentError, 'a dimension needs a name' if name.blank?
 
       unknown = option_names - OPTIONS
-      invalid!("unknown option `#{unknown.map(&:inspect).join('`, `')}`") if unknown.any?
+      invalid!("unknown option #{Portolan.quoted(unknown.map(&:inspect))}") if unknown.any?
       invalid!('needs a description') unless description.is_a?(String) && description.present?
     end
 

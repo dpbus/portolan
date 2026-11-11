@@ -25,6 +25,7 @@ module Portolan
     end
 
     def describe = { name:, description: }
+    def label(value) = value.is_a?(::BigDecimal) ? value.to_f : value
 
     private
 
@@ -32,9 +33,9 @@ module Portolan
       raise ArgumentError, 'a measure needs a name' if name.blank?
 
       unknown = options.keys - AGGREGATES
-      invalid!("unknown option `#{unknown.map(&:inspect).join('`, `')}`") if unknown.any?
+      invalid!("unknown option #{Portolan.quoted(unknown.map(&:inspect))}") if unknown.any?
       invalid!('needs a description') unless description.is_a?(String) && description.present?
-      invalid!("takes one of #{AGGREGATES.map { |kind| "`#{kind}`" }.join(', ')}, not several") if options.size > 1
+      invalid!("takes one of #{Portolan.quoted(AGGREGATES)}, not several") if options.size > 1
 
       options.each do |kind, column|
         next if (column.is_a?(Symbol) || column.is_a?(String)) && column.present?

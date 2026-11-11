@@ -15,7 +15,7 @@ module Portolan
         errors = super
         return errors if errors.any? || values.include?(value.to_s)
 
-        ["unknown value `#{value}`; allowed: #{values.map { |allowed| "`#{allowed}`" }.join(', ')}"]
+        ["unknown value `#{value}`; allowed: #{Portolan.quoted(values)}"]
       end
     end
   end
