@@ -44,4 +44,14 @@ RSpec.describe Portolan::Type::Integer do
       expect(type.cast('26')).to eq(26)
     end
   end
+
+  describe '#label' do
+    it 'labels a value with itself' do
+      expect(type.label(26)).to eq(26)
+    end
+
+    it 'labels a numeric value from an expression as an integer' do
+      expect(type.label(BigDecimal('1325'))).to be_a(Integer).and eq(1325)
+    end
+  end
 end

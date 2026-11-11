@@ -63,4 +63,25 @@ RSpec.describe Portolan::Type::Date do
       expect(type.cast('1325-08-03')).to eq(Date.new(1325, 8, 3))
     end
   end
+
+  describe '#truncate' do
+    before do
+      ship = Ship.create!(name: 'San Giorgio', flag: 'Genoa')
+      %w[1325-08-01 1325-08-31 1325-09-15].each do |charted_on|
+        ship.voyages.create!(fleet: 'genoa', harbor: 'Genoa', crew: 26, leagues: 900, charted_on:,
+          departed_at: Time.utc(1325, 8, 3))
+      end
+    end
+
+    it 'groups dates by period, keeping them as dates' do
+      expect(Voyage.group(type.truncate(Voyage.arel_table[:charted_on], 'month')).count)
+        .to eq(Date.new(1325, 8, 1) => 2, Date.new(1325, 9, 1) => 1)
+    end
+  end
+
+  describe '#label' do
+    it 'labels a period with its first day' do
+      expect(type.label(Date.new(1325, 8, 1), 'month')).to eq('1325-08-01')
+    end
+  end
 end

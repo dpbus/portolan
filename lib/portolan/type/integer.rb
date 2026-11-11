@@ -9,6 +9,7 @@ module Portolan
       def operators = OPERATORS
       def errors_for(value) = parse(value) ? [] : ["`#{value}` is not an integer"]
       def cast(value) = parse(value)
+      def label(value, _period = nil) = value.to_i
 
       private
 

@@ -8,6 +8,7 @@ module Portolan
       def periods = PERIODS
       def lower_bound(value) = value
       def upper_bound(value) = value
+      def label(value, _period = nil) = value
     end
   end
 end
