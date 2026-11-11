@@ -13,6 +13,8 @@ RSpec.describe Portolan::Query::Aggregate do
       dimension :charted_on, 'when the coast was charted', type: :date
       dimension :flag, 'the flag the ship sailed under', joins: :ship, expression: 'ships.flag'
       dimension :long_voyage, 'whether it was over 1000 leagues', type: :boolean, expression: 'voyages.leagues > 1000'
+      dimension :crew_read, 'the crew, read through an expression', expression: 'voyages.crew'
+      dimension :misspelled, 'an expression naming a column that does not exist', expression: 'voyages.crw'
       dimension :fate, 'how the voyage ended', buckets: {
         arrived: { where: -> { Voyage.where.not(arrived_at: nil) }, description: 'reached its destination' },
         lost: -> { Voyage.where(lost: true) },
@@ -25,6 +27,20 @@ RSpec.describe Portolan::Query::Aggregate do
   end
 
   let(:registry) { Portolan::Registry.new(voyages:) }
+
+  let(:timeouts_seen) { [] }
+
+  let(:checked_voyages) do
+    seen = timeouts_seen
+    Class.new(Portolan::Dataset) do
+      description 'One row per voyage.'
+      relation { Voyage.all }
+      dimension :checked, 'whether the guard was on', buckets: {
+        yes: -> { seen << Voyage.connection.select_value('SHOW statement_timeout') && Voyage.all },
+      }
+      measure :voyages, 'number of voyages'
+    end
+  end
 
   let(:ordered_voyages) do
     Class.new(Portolan::Dataset) do
@@ -133,6 +149,12 @@ RSpec.describe Portolan::Query::Aggregate do
       expect(errors(request(measure: 'cargo', limit: 0)).size).to eq(2)
     end
 
+    it 'reports a query that took too long' do
+      allow(Portolan::Query::Guard).to receive(:run).and_raise(ActiveRecord::QueryCanceled)
+
+      expect(errors(request)).to eq([Portolan::Query::Base::TIMEOUT_ERROR])
+    end
+
     it 'returns a result that is not a success' do
       expect(aggregate(request(measure: 'cargo'))).not_to be_success
     end
@@ -238,6 +260,24 @@ RSpec.describe Portolan::Query::Aggregate do
 
       expect(described_class.new(Portolan::Registry.new(voyages: trimmed), request, context: nil).call.rows)
         .to eq([{ 'voyages' => 4 }])
+    end
+
+    it 'applies filters inside the guard, so bucket conditions run with its settings' do
+      filters = [{ 'dimension' => 'checked', 'op' => 'eq', 'value' => 'yes' }]
+      described_class.new(Portolan::Registry.new(voyages: checked_voyages), request(filters:), context: nil).call
+
+      expect(timeouts_seen).to eq(['5s'])
+    end
+
+    it 'reports a value the database cannot use, instead of raising' do
+      filters = [{ 'dimension' => 'crew_read', 'op' => 'eq', 'value' => 'twenty' }]
+
+      expect(errors(request(filters:)))
+        .to eq(['the database could not use a value: invalid input syntax for type integer: "twenty"'])
+    end
+
+    it 'raises for a database error caused by the declaration, not the request' do
+      expect { aggregate(request(group_by: %w[misspelled])) }.to raise_error(ActiveRecord::StatementInvalid, /crw/)
     end
 
     it 'reports too many groups instead of loading them all' do

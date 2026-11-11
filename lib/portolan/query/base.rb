@@ -23,10 +23,19 @@ module Portolan
 
       def valid? = errors.empty?
 
+      TIMEOUT_ERROR = 'the query took too long; filter to a shorter period or group by fewer dimensions'
+
       def call
         return Result.new(request:, errors:) unless valid?
 
-        answer(scope)
+        relation = dataset.relation_for(@context).unscope(*UNSCOPED)
+        Guard.run(relation.klass) { answer(filtered(relation)) }
+      rescue ActiveRecord::QueryCanceled
+        Result.new(request:, errors: [TIMEOUT_ERROR])
+      rescue ActiveRecord::StatementInvalid => e
+        raise unless e.cause.is_a?(PG::DataException)
+
+        Result.new(request:, errors: [data_error(e.cause)])
       end
 
       private
@@ -89,10 +98,11 @@ module Portolan
       def filter_params = @params['filters'].is_a?(::Array) ? @params['filters'] : []
       def limit = @params['limit'].nil? ? ROW_LIMIT : Type::Integer.new.cast(@params['limit'])
 
-      def scope
-        relation = dataset.relation_for(@context).unscope(*UNSCOPED)
-        filters.reduce(relation) { |current, filter| filter.apply(current) }
+      def data_error(error)
+        "the database could not use a value: #{error.message.lines.first.sub(/\AERROR:\s*/, '').strip}"
       end
+
+      def filtered(relation) = filters.reduce(relation) { |current, filter| filter.apply(current) }
 
       def definitions_for(dimensions)
         (dimensions + filters.map(&:dimension)).uniq.to_h { |dimension| [dimension.name, dimension.definition] }
