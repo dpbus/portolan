@@ -6,15 +6,15 @@ RSpec.describe Portolan::Dimension do
   context 'with no type' do
     subject(:harbor) { described_class.new(:harbor, 'the harbor the voyage set out from') }
 
-    it 'is a string' do
+    it 'defaults to the string type' do
       expect(harbor.type).to eq(:string)
     end
 
-    it 'allows eq and in' do
+    it 'allows the eq and in operators' do
       expect(harbor.operators).to eq(%w[eq in])
     end
 
-    it 'has no periods' do
+    it 'returns no periods' do
       expect(harbor.periods).to be_empty
     end
 
@@ -22,7 +22,7 @@ RSpec.describe Portolan::Dimension do
       expect(harbor).not_to be_time
     end
 
-    it 'describes only what it has' do
+    it 'returns only its name, type, description and operators from describe' do
       expect(harbor.describe).to eq(name: 'harbor', type: 'string',
         description: 'the harbor the voyage set out from', operators: %w[eq in])
     end
@@ -31,7 +31,7 @@ RSpec.describe Portolan::Dimension do
   context 'with type: :integer' do
     subject(:crew) { described_class.new(:crew, 'how many sailors were aboard', type: :integer) }
 
-    it 'allows equality and comparisons' do
+    it 'allows equality and comparison operators' do
       expect(crew.operators).to eq(%w[eq in gt lt between])
     end
   end
@@ -39,7 +39,7 @@ RSpec.describe Portolan::Dimension do
   context 'with type: :boolean' do
     subject(:charted) { described_class.new(:charted, 'whether the route was on the chart', type: :boolean) }
 
-    it 'allows eq only' do
+    it 'allows the eq operator only' do
       expect(charted.operators).to eq(%w[eq])
     end
   end
@@ -47,7 +47,7 @@ RSpec.describe Portolan::Dimension do
   context 'with type: :datetime' do
     subject(:departed_at) { described_class.new(:departed_at, 'when the ship set sail', type: :datetime) }
 
-    it 'allows ranges only' do
+    it 'allows range operators only' do
       expect(departed_at.operators).to eq(%w[gt lt between])
     end
 
@@ -55,11 +55,11 @@ RSpec.describe Portolan::Dimension do
       expect(departed_at).to be_time
     end
 
-    it 'allows an hourly period' do
+    it 'allows hour and the calendar periods' do
       expect(departed_at.periods).to eq(%w[hour day week month quarter year])
     end
 
-    it 'lists its periods when described' do
+    it 'includes its periods in describe' do
       expect(departed_at.describe).to include(type: 'datetime', periods: %w[hour day week month quarter year])
     end
   end
@@ -67,7 +67,7 @@ RSpec.describe Portolan::Dimension do
   context 'with type: :date' do
     subject(:charted_on) { described_class.new(:charted_on, 'when the coast was charted', type: :date) }
 
-    it 'allows ranges only' do
+    it 'allows range operators only' do
       expect(charted_on.operators).to eq(%w[gt lt between])
     end
 
@@ -75,7 +75,7 @@ RSpec.describe Portolan::Dimension do
       expect(charted_on.periods).to eq(%w[day week month quarter year])
     end
 
-    it 'lists its periods when described' do
+    it 'includes its periods in describe' do
       expect(charted_on.describe).to include(type: 'date', periods: %w[day week month quarter year])
     end
   end
@@ -91,29 +91,29 @@ RSpec.describe Portolan::Dimension do
     let(:arrived) { -> {} }
     let(:lost) { -> {} }
 
-    it 'keeps a described bucket condition as its where' do
+    it "stores the given condition as the bucket's where" do
       expect(fate.buckets['arrived'].where).to be(arrived)
     end
 
-    it 'accepts a bare lambda as the short form of a where' do
+    it "stores a bare lambda as the bucket's where" do
       expect(fate.buckets['lost'].where).to be(lost)
     end
 
-    it 'uses the bucket names as values' do
+    it 'returns the bucket names as its values' do
       expect(fate.values).to eq(%w[arrived lost])
     end
 
-    it 'treats a blank bucket description as none' do
+    it 'leaves a blank bucket description out of describe' do
       blank = described_class.new(:fate, 'how', buckets: { arrived: { where: -> {}, description: '  ' } })
 
       expect(blank.describe).not_to have_key(:buckets)
     end
 
-    it 'describes only the buckets that have a description' do
+    it 'includes only described buckets in describe' do
       expect(fate.describe[:buckets]).to eq('arrived' => 'reached its destination')
     end
 
-    it 'carries the same descriptions in its definition' do
+    it 'includes the same bucket descriptions in its definition' do
       expect(fate.definition).to eq(description: 'how the voyage ended',
         buckets: { 'arrived' => 'reached its destination' })
     end
@@ -124,22 +124,22 @@ RSpec.describe Portolan::Dimension do
 
     let(:seas) { %i[adriatic aegean] }
 
-    it 'keeps them as strings' do
+    it 'converts the values to strings' do
       expect(sea.values).to eq(%w[adriatic aegean])
     end
 
-    it 'lists them when described' do
+    it 'includes the values in describe' do
       expect(sea.describe[:values]).to eq(%w[adriatic aegean])
     end
 
-    it 'is not changed by the array it was given' do
+    it 'ignores later changes to the array it was given' do
       sea
       seas << :baltic
 
       expect(sea.values).to eq(%w[adriatic aegean])
     end
 
-    it 'cannot be changed through what it hands out' do
+    it 'returns frozen values' do
       expect(sea.values).to be_frozen
     end
   end
@@ -159,122 +159,122 @@ RSpec.describe Portolan::Dimension do
       "dimension `fate`: bucket `#{bucket}`: needs a `where` that responds to `call`"
     end
 
-    it 'requires a name' do
+    it 'raises without a name' do
       expect { described_class.new(' ', 'the harbor') }.to raise_error(ArgumentError, 'a dimension needs a name')
     end
 
-    it 'rejects an unknown option' do
+    it 'raises on an unknown option' do
       expect { described_class.new(:harbor, 'the harbor', joinz: :port) }
         .to raise_error(ArgumentError, 'dimension `harbor`: unknown option `:joinz`')
     end
 
-    it 'shows a string option key as a string' do
+    it 'raises showing a string option key as a string' do
       expect { described_class.new(:crew, 'how many', **{ 'type' => :integer }) }
         .to raise_error(ArgumentError, 'dimension `crew`: unknown option `"type"`')
     end
 
-    it 'requires a description' do
+    it 'raises without a description' do
       expect { described_class.new(:harbor, ' ') }
         .to raise_error(ArgumentError, 'dimension `harbor`: needs a description')
     end
 
-    it 'treats unicode spaces as no description' do
+    it 'raises when the description is only unicode spaces' do
       expect { described_class.new(:harbor, "\u00A0") }
         .to raise_error(ArgumentError, 'dimension `harbor`: needs a description')
     end
 
-    it 'requires the description to be text' do
+    it 'raises when the description is not text' do
       expect { described_class.new(:harbor, %w[the harbor]) }
         .to raise_error(ArgumentError, 'dimension `harbor`: needs a description')
     end
 
-    it 'reports a bad option before looking at buckets' do
+    it 'raises on a bad option before checking buckets' do
       expect { described_class.new(:fate, 'how', bogus: 1, buckets: :arrived) }
         .to raise_error(ArgumentError, 'dimension `fate`: unknown option `:bogus`')
     end
 
-    it 'rejects an unknown type' do
+    it 'raises on an unknown type' do
       expect { described_class.new(:departed_at, 'when', type: :time) }
         .to raise_error(ArgumentError, 'dimension `departed_at`: unknown type `:time` ' \
                                        '(allowed: :string, :integer, :boolean, :date, :datetime)')
     end
 
-    it 'requires values to be a list' do
+    it 'raises when values is not an array' do
       expect { described_class.new(:sea, 'the sea', values: 'adriatic') }
         .to raise_error(ArgumentError, 'dimension `sea`: values must be a non-empty array')
     end
 
-    it 'requires at least one value' do
+    it 'raises when values is empty' do
       expect { described_class.new(:sea, 'the sea', values: []) }
         .to raise_error(ArgumentError, 'dimension `sea`: values must be a non-empty array')
     end
 
-    it 'keeps buckets as strings' do
+    it 'raises when buckets have a non-string type' do
       expect { described_class.new(:fate, 'how', type: :integer, buckets: { arrived: -> {} }) }
         .to raise_error(ArgumentError, 'dimension `fate`: buckets are always `:string`')
     end
 
-    it 'keeps buckets apart from values' do
+    it 'raises when buckets are combined with values' do
       expect { described_class.new(:fate, 'how', values: %w[arrived], buckets: { arrived: -> {} }) }
         .to raise_error(ArgumentError, 'dimension `fate`: buckets cannot have `values`, `joins`, or `expression`')
     end
 
-    it 'keeps buckets apart from joins' do
+    it 'raises when buckets are combined with joins' do
       expect { described_class.new(:fate, 'how', joins: :ship, buckets: { arrived: -> {} }) }
         .to raise_error(ArgumentError, 'dimension `fate`: buckets cannot have `values`, `joins`, or `expression`')
     end
 
-    it 'keeps buckets apart from expressions' do
+    it 'raises when buckets are combined with an expression' do
       expect { described_class.new(:fate, 'how', expression: 'x', buckets: { arrived: -> {} }) }
         .to raise_error(ArgumentError, 'dimension `fate`: buckets cannot have `values`, `joins`, or `expression`')
     end
 
-    it 'requires buckets to be a hash' do
+    it 'raises when buckets is not a hash' do
       expect { described_class.new(:fate, 'how', buckets: :arrived) }
         .to raise_error(ArgumentError, 'dimension `fate`: buckets must be a hash of names to conditions')
     end
 
-    it 'requires at least one bucket' do
+    it 'raises when buckets is empty' do
       expect { described_class.new(:fate, 'how', buckets: {}) }
         .to raise_error(ArgumentError, 'dimension `fate`: needs at least one bucket')
     end
 
-    it 'rejects a bucket declared twice' do
+    it 'raises when a bucket name is declared twice' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: -> {}, 'arrived' => -> {} }) }
         .to raise_error(ArgumentError, 'dimension `fate`: bucket `arrived` is declared twice')
     end
 
-    it 'rejects an unknown bucket option' do
+    it 'raises on an unknown bucket option' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: { where: -> {}, descripton: 'made port' } }) }
         .to raise_error(ArgumentError, 'dimension `fate`: bucket `arrived`: unknown option `:descripton`')
     end
 
-    it 'shows a string bucket key as a string, so the missing symbol is visible' do
+    it 'raises showing a string bucket key as a string' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: { 'where' => -> {} } }) }
         .to raise_error(ArgumentError, 'dimension `fate`: bucket `arrived`: unknown option `"where"`')
     end
 
-    it 'rejects a bucket given as a symbol' do
+    it 'raises when a bucket is a symbol' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: :reached }) }
         .to raise_error(ArgumentError, needs_where('arrived'))
     end
 
-    it 'rejects a bucket given as nil' do
+    it 'raises when a bucket is nil' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: nil }) }
         .to raise_error(ArgumentError, needs_where('arrived'))
     end
 
-    it 'rejects a bucket with a description but no where' do
+    it 'raises when a bucket has a description but no where' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: { description: 'made port' } }) }
         .to raise_error(ArgumentError, needs_where('arrived'))
     end
 
-    it 'rejects a where that cannot be called' do
+    it 'raises when a where cannot be called' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: { where: { reached: true } } }) }
         .to raise_error(ArgumentError, needs_where('arrived'))
     end
 
-    it 'names the bad bucket among good ones' do
+    it 'raises naming the bad bucket among good ones' do
       expect { described_class.new(:fate, 'how', buckets: { arrived: -> {}, lost: nil }) }
         .to raise_error(ArgumentError, needs_where('lost'))
     end
