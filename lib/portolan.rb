@@ -20,6 +20,7 @@ require_relative 'portolan/measure'
 require_relative 'portolan/dataset'
 require_relative 'portolan/registry'
 require_relative 'portolan/query/filter'
+require_relative 'portolan/query/result'
 
 module Portolan
 end
