@@ -226,7 +226,7 @@ RSpec.describe Portolan::Dimension do
     it 'raises on an unknown type' do
       expect { described_class.new(:departed_at, 'when', type: :time) }
         .to raise_error(ArgumentError, 'dimension `departed_at`: unknown type `:time` ' \
-                                       '(allowed: :string, :integer, :boolean, :date, :datetime)')
+                                       '(allowed: :string, :integer, :decimal, :boolean, :date, :datetime)')
     end
 
     it 'raises when values is not an array' do

@@ -6,7 +6,7 @@ RSpec.describe Portolan::Type do
   describe '.for' do
     it 'returns the type for each name' do
       expect(described_class::NAMES.map { |name| described_class.for(name).name })
-        .to eq(%w[string integer boolean date datetime])
+        .to eq(%w[string integer decimal boolean date datetime])
     end
 
     it 'hands out frozen operators and periods' do

@@ -30,6 +30,7 @@ ActiveRecord::Schema.define do
     t.boolean :lost, null: false, default: false
     t.integer :crew, null: false
     t.integer :leagues, null: false
+    t.decimal :tons, precision: 8, scale: 2
     t.date :charted_on
   end
 end

@@ -9,6 +9,7 @@ RSpec.describe Portolan::Query::Aggregate do
       relation { |fleet| fleet ? Voyage.where(fleet:) : Voyage.all }
       dimension :harbor, 'the harbor the voyage set out from'
       dimension :crew, 'how many sailors were aboard', type: :integer
+      dimension :tons, 'cargo carried, in tons', type: :decimal
       dimension :departed_at, 'when the ship set sail', type: :datetime
       dimension :charted_on, 'when the coast was charted', type: :date
       dimension :flag, 'the flag the ship sailed under', joins: :ship, expression: 'ships.flag'
@@ -174,7 +175,7 @@ RSpec.describe Portolan::Query::Aggregate do
         departed_at: Time.utc(1325, 8, 3, 9), arrived_at: Time.utc(1325, 10, 12),
         captain: Captain.create!(name: 'Doria'))
       voyage.call(san_giorgio, harbor: 'Caffa', departed_at: Time.utc(1326, 9, 25), lost: true, crew: 40,
-        charted_on: '1326-09-01')
+        charted_on: '1326-09-01', tons: 120.5)
       voyage.call(san_marco, fleet: 'venice', harbor: 'Venice', departed_at: Time.utc(1330, 7, 8),
         arrived_at: Time.utc(1331, 5, 20), crew: 170, leagues: 4000)
     end
@@ -203,6 +204,18 @@ RSpec.describe Portolan::Query::Aggregate do
 
     it 'counts every row when grouping by an optional association' do
       expect(rows(request(group_by: %w[captain])).sum { |row| row['voyages'] }).to eq(3)
+    end
+
+    it 'rounds a decimal filter to the column scale, as Rails does' do
+      filters = [{ 'dimension' => 'tons', 'op' => 'eq', 'value' => 120.504 }]
+
+      expect(rows(request(filters:))).to eq([{ 'voyages' => 1 }])
+    end
+
+    it 'filters and groups by a decimal' do
+      filters = [{ 'dimension' => 'tons', 'op' => 'gt', 'value' => 100.25 }]
+
+      expect(rows(request(group_by: %w[tons], filters:))).to eq([{ 'tons' => 120.5, 'voyages' => 1 }])
     end
 
     it 'groups by an expression' do
