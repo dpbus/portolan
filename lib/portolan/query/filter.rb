@@ -122,11 +122,7 @@ module Portolan
       end
 
       def apply_buckets(scope)
-        primary_key = scope.klass.primary_key
-        bucket_scopes = values.map do |name|
-          scope.where(primary_key => dimension.buckets.fetch(name).where.call.select(primary_key))
-        end
-        bucket_scopes.reduce(:or)
+        values.map { |name| dimension.buckets.fetch(name).apply(scope) }.reduce(:or)
       end
 
       def quoted(items) = items.map { |item| "`#{item}`" }.join(', ')

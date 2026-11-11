@@ -43,6 +43,38 @@ RSpec.describe Portolan::Dimension::Bucket do
     end
   end
 
+  describe '#apply' do
+    subject(:lost) { described_class.new(:lost, -> { Voyage.where(lost: true) }) }
+
+    before do
+      ship = Ship.create!(name: 'San Giorgio', flag: 'Genoa')
+      %w[genoa venice].each do |fleet|
+        [true, false].each do |lost|
+          ship.voyages.create!(fleet:, lost:, harbor: "#{fleet} #{lost}", crew: 26, leagues: 900,
+            departed_at: Time.utc(1325, 8, 3))
+        end
+      end
+    end
+
+    it 'keeps the rows of the scope that are in the bucket' do
+      expect(lost.apply(Voyage.where(fleet: 'genoa')).pluck(:harbor)).to eq(['genoa true'])
+    end
+
+    it 'never adds rows the scope left out' do
+      expect(lost.apply(Voyage.where(lost: false))).to be_empty
+    end
+
+    it 'raises for a model with a composite primary key' do
+      logbook = Class.new(ActiveRecord::Base) do
+        self.table_name = 'voyages'
+        self.primary_key = %w[ship_id harbor]
+      end
+
+      expect { lost.apply(logbook.all) }.to raise_error(ArgumentError,
+        'bucket `lost`: needs a model with a single-column primary key; `voyages` has `ship_id`, `harbor`')
+    end
+  end
+
   describe 'checks' do
     it 'raises on an unknown option' do
       expect { described_class.new(:arrived, { where: condition, descripton: 'made port' }) }
