@@ -52,6 +52,12 @@ RSpec.describe Portolan::Type::Date do
     end
   end
 
+  it 'uses the value itself as both bounds of a range' do
+    day = Date.new(1325, 8, 3)
+
+    expect([type.lower_bound(day), type.upper_bound(day)]).to eq([day, day])
+  end
+
   describe '#cast' do
     it 'casts a day to a date' do
       expect(type.cast('1325-08-03')).to eq(Date.new(1325, 8, 3))

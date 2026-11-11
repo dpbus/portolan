@@ -2,8 +2,10 @@
 
 require 'active_support'
 require 'active_support/core_ext/object/blank'
+require 'active_support/core_ext/time/calculations'
 
 require_relative 'portolan/version'
+require_relative 'portolan/type/base'
 require_relative 'portolan/type/string'
 require_relative 'portolan/type/enum'
 require_relative 'portolan/type/integer'

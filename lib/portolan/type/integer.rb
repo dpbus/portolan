@@ -2,13 +2,11 @@
 
 module Portolan
   module Type
-    class Integer
+    class Integer < Base
       OPERATORS = %w[eq in gt lt between].freeze
-      PERIODS = [].freeze
 
       def name = 'integer'
       def operators = OPERATORS
-      def periods = PERIODS
       def errors_for(value) = parse(value) ? [] : ["`#{value}` is not an integer"]
       def cast(value) = parse(value)
 

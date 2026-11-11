@@ -2,7 +2,7 @@
 
 module Portolan
   module Type
-    class Date
+    class Date < Base
       OPERATORS = %w[gt lt between].freeze
       PERIODS = %w[day week month quarter year].freeze
 

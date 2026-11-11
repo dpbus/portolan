@@ -35,6 +35,10 @@ RSpec.describe Portolan::Type::Integer do
     end
   end
 
+  it 'uses the value itself as both bounds of a range' do
+    expect([type.lower_bound(26), type.upper_bound(26)]).to eq([26, 26])
+  end
+
   describe '#cast' do
     it 'casts digits to an integer' do
       expect(type.cast('26')).to eq(26)
