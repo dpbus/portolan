@@ -154,7 +154,7 @@ RSpec.describe Portolan::Dimension do
     end
   end
 
-  describe 'declaration mistakes' do
+  describe 'checks' do
     def needs_where(bucket)
       "dimension `fate`: bucket `#{bucket}`: needs a `where` that responds to `call`"
     end
