@@ -14,6 +14,7 @@ module Portolan
       @expression = options[:expression]
       @buckets = build_buckets(options[:buckets])
       @type = build_type(options)
+      invalid!('`joins` needs an `expression` naming the joined column') if joins && expression.nil?
       freeze
     end
 
@@ -33,6 +34,12 @@ module Portolan
         periods: (periods if time?),
         buckets: (bucket_descriptions.presence if buckets?),
       }.compact
+    end
+
+    def column(scope)
+      return scope.arel_table[name] unless expression
+
+      Arel::Nodes::Grouping.new(Arel.sql(expression))
     end
 
     def definition

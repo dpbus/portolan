@@ -156,6 +156,20 @@ RSpec.describe Portolan::Dimension do
     end
   end
 
+  describe '#column' do
+    it "returns the dataset table's column for a plain dimension" do
+      expect(described_class.new(:harbor, 'the harbor').column(Voyage.all))
+        .to have_attributes(relation: Voyage.arel_table, name: 'harbor')
+    end
+
+    it 'returns the expression in parentheses' do
+      long_voyage = described_class.new(:long_voyage, 'over 1000 leagues', type: :boolean,
+        expression: 'voyages.leagues > 1000')
+
+      expect(long_voyage.column(Voyage.all).to_sql).to eq('(voyages.leagues > 1000)')
+    end
+  end
+
   describe 'checks' do
     def needs_where(bucket)
       "dimension `fate`: bucket `#{bucket}`: needs a `where` that responds to `call`"
@@ -234,6 +248,11 @@ RSpec.describe Portolan::Dimension do
     it 'raises when buckets are combined with an expression' do
       expect { described_class.new(:fate, 'how', expression: 'x', buckets: { arrived: -> {} }) }
         .to raise_error(ArgumentError, 'dimension `fate`: buckets cannot have `values`, `joins`, or `expression`')
+    end
+
+    it 'raises when a join has no expression to read' do
+      expect { described_class.new(:flag, 'the flag', joins: :ship) }
+        .to raise_error(ArgumentError, 'dimension `flag`: `joins` needs an `expression` naming the joined column')
     end
 
     it 'raises when buckets is not a hash' do

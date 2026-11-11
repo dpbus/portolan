@@ -28,7 +28,7 @@ module Portolan
         return apply_buckets(scope) if dimension.buckets?
 
         scope = scope.joins(dimension.joins) if dimension.joins
-        dimension.expression ? scope.where(expression_condition) : column_condition(scope)
+        dimension.expression ? scope.where(expression_condition(scope)) : column_condition(scope)
       end
 
       private
@@ -104,8 +104,8 @@ module Portolan
         end
       end
 
-      def expression_condition
-        expression = Arel::Nodes::Grouping.new(Arel.sql(dimension.expression))
+      def expression_condition(scope)
+        expression = dimension.column(scope)
         case operator
         when 'eq', 'in' then expression.in(values.map { |value| bound(value) })
         when 'gt' then expression.gt(bound(upper_bound))
