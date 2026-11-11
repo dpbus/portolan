@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'active_record'
 require 'active_support'
 require 'active_support/core_ext/object/blank'
 require 'active_support/core_ext/time/calculations'
@@ -18,6 +19,7 @@ require_relative 'portolan/dimension/bucket'
 require_relative 'portolan/measure'
 require_relative 'portolan/dataset'
 require_relative 'portolan/registry'
+require_relative 'portolan/query/filter'
 
 module Portolan
 end
