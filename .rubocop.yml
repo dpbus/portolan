@@ -1,0 +1,64 @@
+plugins:
+  - rubocop-rspec
+
+inherit_mode:
+  merge:
+    - Exclude
+
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: disable
+  SuggestExtensions: false
+  Exclude:
+    - vendor/**/*
+
+Layout/ArgumentAlignment:
+  EnforcedStyle: with_fixed_indentation
+
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
+Metrics/AbcSize:
+  CountRepeatedAttributes: false
+  Max: 30
+
+Metrics/ClassLength:
+  CountAsOne: ['array', 'heredoc', 'method_call']
+  Max: 200
+
+Metrics/MethodLength:
+  CountAsOne: ['array', 'heredoc', 'method_call']
+  Max: 20
+
+Metrics/BlockLength:
+  CountAsOne: ['array', 'heredoc', 'method_call']
+  Exclude:
+    - spec/**/*
+    - '*.gemspec'
+
+Metrics/CyclomaticComplexity:
+  Enabled: false
+
+Metrics/PerceivedComplexity:
+  Enabled: false
+
+Naming/MethodParameterName:
+  MinNameLength: 1
+
+Style/Documentation:
+  Enabled: false
+
+Style/Lambda:
+  EnforcedStyle: literal
+
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: comma
+
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: comma
+
+RSpec/ExampleLength:
+  Max: 7
+
+RSpec/MultipleExpectations:
+  Max: 3
