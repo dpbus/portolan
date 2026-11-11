@@ -12,6 +12,7 @@ RSpec.describe Portolan::Query::Aggregate do
       dimension :departed_at, 'when the ship set sail', type: :datetime
       dimension :charted_on, 'when the coast was charted', type: :date
       dimension :flag, 'the flag the ship sailed under', joins: :ship, expression: 'ships.flag'
+      dimension :captain, 'who commanded the voyage', joins: :captain, expression: 'captains.name'
       dimension :long_voyage, 'whether it was over 1000 leagues', type: :boolean, expression: 'voyages.leagues > 1000'
       dimension :crew_read, 'the crew, read through an expression', expression: 'voyages.crew'
       dimension :misspelled, 'an expression naming a column that does not exist', expression: 'voyages.crw'
@@ -167,9 +168,11 @@ RSpec.describe Portolan::Query::Aggregate do
       san_marco = Ship.create!(name: 'San Marco', flag: 'Venice')
       voyage = ->(ship, **attributes) { ship.voyages.create!(fleet: 'genoa', crew: 26, leagues: 900, **attributes) }
       voyage.call(san_giorgio, harbor: 'Genoa', leagues: 1100, charted_on: '1325-08-01',
-        departed_at: Time.utc(1325, 8, 3, 8), arrived_at: Time.utc(1325, 10, 12))
+        departed_at: Time.utc(1325, 8, 3, 8), arrived_at: Time.utc(1325, 10, 12),
+        captain: Captain.create!(name: 'Spinola'))
       voyage.call(santa_caterina, harbor: 'Genoa', crew: 24, leagues: 1100,
-        departed_at: Time.utc(1325, 8, 3, 9), arrived_at: Time.utc(1325, 10, 12))
+        departed_at: Time.utc(1325, 8, 3, 9), arrived_at: Time.utc(1325, 10, 12),
+        captain: Captain.create!(name: 'Doria'))
       voyage.call(san_giorgio, harbor: 'Caffa', departed_at: Time.utc(1326, 9, 25), lost: true, crew: 40,
         charted_on: '1326-09-01')
       voyage.call(san_marco, fleet: 'venice', harbor: 'Venice', departed_at: Time.utc(1330, 7, 8),
@@ -192,6 +195,14 @@ RSpec.describe Portolan::Query::Aggregate do
     it 'groups by a joined table' do
       expect(rows(request(group_by: %w[flag]), context: nil))
         .to eq([{ 'flag' => 'Genoa', 'voyages' => 3 }, { 'flag' => 'Venice', 'voyages' => 1 }])
+    end
+
+    it 'keeps rows without an optional association, as nil' do
+      expect(rows(request(group_by: %w[captain])).map { |row| row['captain'] }).to eq([nil, 'Doria', 'Spinola'])
+    end
+
+    it 'counts every row when grouping by an optional association' do
+      expect(rows(request(group_by: %w[captain])).sum { |row| row['voyages'] }).to eq(3)
     end
 
     it 'groups by an expression' do

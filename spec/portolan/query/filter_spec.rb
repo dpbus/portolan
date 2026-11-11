@@ -14,6 +14,7 @@ RSpec.describe Portolan::Query::Filter do
       dimension :departed_at, 'when the ship set sail', type: :datetime
       dimension :charted_on, 'when the coast was charted', type: :date
       dimension :flag, 'the flag the ship sailed under', joins: :ship, expression: 'ships.flag'
+      dimension :captain, 'who commanded the voyage', joins: :captain, expression: 'captains.name'
       dimension :long_voyage, 'whether it was over 1000 leagues', type: :boolean, expression: 'voyages.leagues > 1000'
       dimension :fate, 'how the voyage ended', buckets: {
         arrived: -> { Voyage.where.not(arrived_at: nil) },
@@ -135,7 +136,8 @@ RSpec.describe Portolan::Query::Filter do
       san_giorgio = Ship.create!(name: 'San Giorgio', flag: 'Genoa')
       san_marco = Ship.create!(name: 'San Marco', flag: 'Venice')
       san_giorgio.voyages.create!(fleet: 'genoa', harbor: 'Genoa', crew: 26, leagues: 1100, charted_on: '1325-08-01',
-        departed_at: Time.utc(1325, 8, 3, 8), arrived_at: Time.utc(1325, 10, 12))
+        departed_at: Time.utc(1325, 8, 3, 8), arrived_at: Time.utc(1325, 10, 12),
+        captain: Captain.create!(name: 'Doria'))
       san_marco.voyages.create!(fleet: 'venice', harbor: 'Venice', crew: 170, leagues: 4000,
         charted_on: '1330-06-30', departed_at: Time.utc(1330, 7, 8, 23, 59, 59.999999r),
         arrived_at: Time.utc(1331, 5, 20))
@@ -198,6 +200,10 @@ RSpec.describe Portolan::Query::Filter do
 
     it 'filters on a joined table' do
       expect(harbors('dimension' => 'flag', 'op' => 'eq', 'value' => 'Venice')).to eq(%w[Venice])
+    end
+
+    it 'filters on an optional association' do
+      expect(harbors('dimension' => 'captain', 'op' => 'eq', 'value' => 'Doria')).to eq(%w[Genoa])
     end
 
     it 'filters on an expression' do

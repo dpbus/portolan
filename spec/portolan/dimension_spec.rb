@@ -156,6 +156,20 @@ RSpec.describe Portolan::Dimension do
     end
   end
 
+  describe '#join' do
+    it 'adds a left join for its association' do
+      captain = described_class.new(:captain, 'who commanded', joins: :captain, expression: 'captains.name')
+
+      expect(captain.join(Voyage.all).to_sql).to include('LEFT OUTER JOIN "captains"')
+    end
+
+    it 'returns the scope unchanged without a join' do
+      scope = Voyage.all
+
+      expect(described_class.new(:harbor, 'the harbor').join(scope)).to be(scope)
+    end
+  end
+
   describe '#column' do
     it "returns the dataset table's column for a plain dimension" do
       expect(described_class.new(:harbor, 'the harbor').column(Voyage.all))

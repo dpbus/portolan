@@ -36,6 +36,8 @@ module Portolan
       }.compact
     end
 
+    def join(scope) = joins ? scope.left_joins(joins) : scope
+
     def column(scope)
       return scope.arel_table[name] unless expression
 

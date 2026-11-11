@@ -16,8 +16,13 @@ ActiveRecord::Schema.define do
     t.string :flag, null: false
   end
 
+  create_table :captains, force: :cascade do |t|
+    t.string :name, null: false
+  end
+
   create_table :voyages, force: :cascade do |t|
     t.references :ship, null: false, foreign_key: true
+    t.references :captain, foreign_key: true
     t.string :fleet, null: false
     t.string :harbor, null: false
     t.datetime :departed_at, null: false

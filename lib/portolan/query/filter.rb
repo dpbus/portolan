@@ -27,7 +27,7 @@ module Portolan
       def apply(scope)
         return apply_buckets(scope) if dimension.buckets?
 
-        scope = scope.joins(dimension.joins) if dimension.joins
+        scope = dimension.join(scope)
         dimension.expression ? scope.where(expression_condition(scope)) : column_condition(scope)
       end
 

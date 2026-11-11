@@ -119,7 +119,7 @@ module Portolan
         return [[[], measure.call(scope)]] if dimensions.empty?
 
         grouped = dimensions.reduce(scope) do |current, dimension|
-          current = current.joins(dimension.joins) if dimension.joins
+          current = dimension.join(current)
           current.group(group_expression(current, dimension))
         end
         measure.call(grouped.limit(GROUP_LIMIT + 1)).map { |keys, value| [dimensions.one? ? [keys] : keys, value] }
