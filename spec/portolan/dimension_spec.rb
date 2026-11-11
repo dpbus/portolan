@@ -7,7 +7,7 @@ RSpec.describe Portolan::Dimension do
     subject(:harbor) { described_class.new(:harbor, 'the harbor the voyage set out from') }
 
     it 'defaults to the string type' do
-      expect(harbor.type).to eq(:string)
+      expect(harbor.type).to be_an_instance_of(Portolan::Type::String)
     end
 
     it 'allows the eq and in operators' do
@@ -91,6 +91,10 @@ RSpec.describe Portolan::Dimension do
     let(:arrived) { -> {} }
     let(:lost) { -> {} }
 
+    it 'uses an enum of the bucket names as its type' do
+      expect(fate.type.values).to eq(%w[arrived lost])
+    end
+
     it "stores the given condition as the bucket's where" do
       expect(fate.buckets['arrived'].where).to be(arrived)
     end
@@ -124,6 +128,14 @@ RSpec.describe Portolan::Dimension do
 
     let(:seas) { %i[adriatic aegean] }
 
+    it 'uses an enum of its values as its type' do
+      expect(sea.type).to be_an_instance_of(Portolan::Type::Enum)
+    end
+
+    it 'describes its type as a string' do
+      expect(sea.describe[:type]).to eq('string')
+    end
+
     it 'converts the values to strings' do
       expect(sea.values).to eq(%w[adriatic aegean])
     end
@@ -141,16 +153,6 @@ RSpec.describe Portolan::Dimension do
 
     it 'returns frozen values' do
       expect(sea.values).to be_frozen
-    end
-  end
-
-  describe 'shared lists' do
-    it 'freezes every operator list' do
-      expect(described_class::OPERATORS.values).to all(be_frozen)
-    end
-
-    it 'freezes every period list' do
-      expect(described_class::PERIODS.values).to all(be_frozen)
     end
   end
 
@@ -202,6 +204,11 @@ RSpec.describe Portolan::Dimension do
     it 'raises when values is not an array' do
       expect { described_class.new(:sea, 'the sea', values: 'adriatic') }
         .to raise_error(ArgumentError, 'dimension `sea`: values must be a non-empty array')
+    end
+
+    it 'raises when values are given for a type other than string' do
+      expect { described_class.new(:crew, 'how many', type: :integer, values: [26, 40]) }
+        .to raise_error(ArgumentError, 'dimension `crew`: values are only for `:string`')
     end
 
     it 'raises when values is empty' do

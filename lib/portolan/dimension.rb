@@ -2,18 +2,8 @@
 
 module Portolan
   class Dimension
-    TYPES = %i[string integer boolean date datetime].freeze
     OPTIONS = %i[type values joins expression buckets].freeze
     BUCKET_OPTIONS = %i[where description].freeze
-    OPERATORS = {
-      string: %w[eq in],
-      integer: %w[eq in gt lt between],
-      boolean: %w[eq],
-      date: %w[gt lt between],
-      datetime: %w[gt lt between],
-    }.transform_values(&:freeze).freeze
-    DATE_PERIODS = %w[day week month quarter year].freeze
-    PERIODS = { date: DATE_PERIODS, datetime: ['hour', *DATE_PERIODS].freeze }.freeze
 
     Bucket = Data.define(:name, :where, :description) do
       def callable? = where.respond_to?(:call)
@@ -25,25 +15,23 @@ module Portolan
       @name = name.to_s
       check_options!(options.keys, description)
       @description = description
-      @type = options.fetch(:type, :string)
-      @values = build_values(options[:values])
       @joins = options[:joins]
       @expression = options[:expression]
       @buckets = build_buckets(options[:buckets])
-      check!
+      @type = build_type(options.fetch(:type, :string), options[:values])
       freeze
     end
 
-    def values = buckets ? buckets.keys : @values
-    def operators = OPERATORS.fetch(type)
-    def periods = PERIODS.fetch(type, [])
+    def values = type.is_a?(Type::Enum) ? type.values : nil
+    def operators = type.operators
+    def periods = type.periods
     def time? = periods.any?
     def buckets? = !buckets.nil?
 
     def describe
       {
         name:,
-        type: type.to_s,
+        type: type.name,
         description:,
         operators:,
         values:,
@@ -58,11 +46,22 @@ module Portolan
 
     private
 
-    def build_values(values)
-      return if values.nil?
+    def build_type(type_name, values)
+      unless Type::NAMES.include?(type_name)
+        invalid!("unknown type `#{type_name.inspect}` (allowed: #{Type::NAMES.map(&:inspect).join(', ')})")
+      end
+      return bucket_type(type_name, values) if buckets?
+      return Type.for(type_name) if values.nil?
 
       invalid!('values must be a non-empty array') unless values.is_a?(Array) && values.any?
-      values.map(&:to_s).freeze
+      invalid!('values are only for `:string`') unless type_name == :string
+      Type::Enum.new(values)
+    end
+
+    def bucket_type(type_name, values)
+      invalid!('buckets are always `:string`') unless type_name == :string
+      invalid!('buckets cannot have `values`, `joins`, or `expression`') if values || joins || expression
+      Type::Enum.new(buckets.keys)
     end
 
     def build_buckets(buckets)
@@ -96,18 +95,6 @@ module Portolan
       unknown = option_names - OPTIONS
       invalid!("unknown option `#{unknown.map(&:inspect).join('`, `')}`") if unknown.any?
       invalid!('needs a description') unless description.is_a?(String) && description.present?
-    end
-
-    def check!
-      unless TYPES.include?(type)
-        invalid!("unknown type `#{type.inspect}` (allowed: #{TYPES.map(&:inspect).join(', ')})")
-      end
-      check_buckets! if buckets?
-    end
-
-    def check_buckets!
-      invalid!('buckets are always `:string`') unless type == :string
-      invalid!('buckets cannot have `values`, `joins`, or `expression`') if @values || joins || expression
     end
 
     def invalid!(problem)

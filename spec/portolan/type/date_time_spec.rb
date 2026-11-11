@@ -1,0 +1,19 @@
+# frozen_string_literal: true
+
+require 'spec_helper'
+
+RSpec.describe Portolan::Type::DateTime do
+  subject(:type) { described_class.new }
+
+  it 'is named datetime' do
+    expect(type.name).to eq('datetime')
+  end
+
+  it 'allows hour and the calendar periods' do
+    expect(type.periods).to eq(%w[hour day week month quarter year])
+  end
+
+  it 'takes a day as a value' do
+    expect(type.cast('1325-08-03')).to eq(Date.new(1325, 8, 3))
+  end
+end

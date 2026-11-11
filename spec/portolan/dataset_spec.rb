@@ -39,7 +39,7 @@ RSpec.describe Portolan::Dataset do
     end
 
     it 'passes its options to the dimension' do
-      expect(voyages.dimensions['departed_at'].type).to eq(:datetime)
+      expect(voyages.dimensions['departed_at'].type.name).to eq('datetime')
     end
 
     it 'raises when a dimension name is declared twice' do
