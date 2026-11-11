@@ -54,6 +54,19 @@ RSpec.describe Portolan::Registry do
         .to raise_error(ArgumentError, 'registry: dataset `voyages` is not a Portolan::Dataset')
     end
 
+    it 'accepts a dataset whose examples are valid requests' do
+      voyages.example('How many voyages left each harbor?', { measure: 'voyages', group_by: %w[harbor] })
+
+      expect(described_class.new(voyages:).names).to eq(%w[voyages])
+    end
+
+    it 'raises for an example that is not a valid request' do
+      voyages.example('How many trips were there?', { measure: 'trips' })
+
+      expect { described_class.new(voyages:) }.to raise_error(ArgumentError,
+        'registry: dataset `voyages`: example 1 is not a valid request: unknown measure `trips`; allowed: `voyages`')
+    end
+
     it 'raises the dataset error for an incomplete dataset' do
       expect { described_class.new(voyages: Class.new(Portolan::Dataset)) }
         .to raise_error(ArgumentError, 'dataset `anonymous`: needs a description')
@@ -104,5 +117,60 @@ RSpec.describe Portolan::Registry do
 
   it 'is frozen' do
     expect(registry).to be_frozen
+  end
+
+  describe '#aggregate' do
+    subject(:fleet_registry) { described_class.new(voyages: fleet_voyages) }
+
+    let(:fleet_voyages) do
+      Class.new(Portolan::Dataset) do
+        description 'One row per voyage.'
+        relation { |fleet| fleet ? Voyage.where(fleet:) : Voyage.all }
+        dimension :harbor, 'the harbor the voyage set out from'
+        dimension :fleet, 'the fleet the ship sailed with', values: %w[genoa venice]
+        measure :voyages, 'number of voyages'
+      end
+    end
+
+    let(:symbol_request) do
+      { dataset: :voyages, measure: :voyages, group_by: [:harbor],
+        filters: [{ dimension: :fleet, op: :eq, value: :genoa }] }
+    end
+
+    before do
+      ship = Ship.create!(name: 'San Giorgio', flag: 'Genoa')
+      [%w[genoa Genoa], %w[genoa Genoa], %w[genoa Caffa], %w[venice Venice]].each do |fleet, harbor|
+        ship.voyages.create!(fleet:, harbor:, crew: 26, leagues: 900, departed_at: Time.utc(1325, 8, 3))
+      end
+    end
+
+    it 'answers a request written with symbols' do
+      expect(fleet_registry.aggregate(symbol_request, context: nil).rows)
+        .to eq([{ 'harbor' => 'Genoa', 'voyages' => 2 }, { 'harbor' => 'Caffa', 'voyages' => 1 }])
+    end
+
+    it 'answers the same request written as JSON' do
+      json_request = JSON.parse(JSON.generate(symbol_request))
+
+      expect(fleet_registry.aggregate(json_request, context: nil).rows)
+        .to eq(fleet_registry.aggregate(symbol_request, context: nil).rows)
+    end
+
+    it 'accepts parameters that convert themselves to a hash' do
+      request = symbol_request
+      parameters = Class.new { define_method(:to_unsafe_h) { request } }.new
+
+      expect(fleet_registry.aggregate(parameters, context: nil)).to be_success
+    end
+
+    it 'scopes rows to the context' do
+      expect(fleet_registry.aggregate({ dataset: :voyages, measure: :voyages }, context: 'venice').rows)
+        .to eq([{ 'voyages' => 1 }])
+    end
+
+    it 'returns errors for a bad request' do
+      expect(fleet_registry.aggregate({ dataset: :voyages, measure: :cargo }, context: nil).errors)
+        .to eq(['unknown measure `cargo`; allowed: `voyages`'])
+    end
   end
 end
