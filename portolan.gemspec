@@ -13,6 +13,7 @@ Gem::Specification.new do |spec|
                      'measures and worked examples. A dashboard or an LLM tool sends a structured request ' \
                      'and gets back only what the app has declared, never SQL.'
   spec.license = 'MIT'
+  spec.homepage = 'https://github.com/dpbus/portolan'
   spec.required_ruby_version = '>= 3.3'
 
   spec.files = Dir['lib/**/*.rb', 'LICENSE.txt', 'README.md']
@@ -20,5 +21,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'activerecord', '>= 7.1', '< 9'
   spec.add_dependency 'activesupport', '>= 7.1', '< 9'
+  spec.metadata['source_code_uri'] = 'https://github.com/dpbus/portolan'
+  spec.metadata['bug_tracker_uri'] = 'https://github.com/dpbus/portolan/issues'
   spec.metadata['rubygems_mfa_required'] = 'true'
 end
