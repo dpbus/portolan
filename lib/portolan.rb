@@ -21,6 +21,8 @@ require_relative 'portolan/dataset'
 require_relative 'portolan/registry'
 require_relative 'portolan/query/filter'
 require_relative 'portolan/query/result'
+require_relative 'portolan/query/base'
+require_relative 'portolan/query/aggregate'
 
 module Portolan
 end

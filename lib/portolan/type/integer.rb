@@ -4,12 +4,20 @@ module Portolan
   module Type
     class Integer < Base
       OPERATORS = %w[eq in gt lt between].freeze
+      RANGE = (-(2**63))..((2**63) - 1)
 
       def name = 'integer'
       def operators = OPERATORS
-      def errors_for(value) = parse(value) ? [] : ["`#{value}` is not an integer"]
       def cast(value) = parse(value)
       def label(value, _period = nil) = value.to_i
+
+      def errors_for(value)
+        number = parse(value)
+        return ["`#{value}` is not an integer"] unless number
+        return [] if RANGE.cover?(number)
+
+        ["`#{value}` is outside the integer range, #{RANGE.min} to #{RANGE.max}"]
+      end
 
       private
 

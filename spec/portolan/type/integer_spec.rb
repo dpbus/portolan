@@ -30,6 +30,15 @@ RSpec.describe Portolan::Type::Integer do
       expect(type.errors_for('26.5')).to eq(['`26.5` is not an integer'])
     end
 
+    it 'returns no errors at the edges of the 64-bit range' do
+      expect([type.errors_for(9_223_372_036_854_775_807), type.errors_for('-9223372036854775808')]).to all(be_empty)
+    end
+
+    it 'returns an error past the 64-bit range' do
+      expect(type.errors_for('9223372036854775808')).to eq(['`9223372036854775808` is outside the integer range, ' \
+                                                            '-9223372036854775808 to 9223372036854775807'])
+    end
+
     it 'returns an error for a float' do
       expect(type.errors_for(26.5)).to eq(['`26.5` is not an integer'])
     end
