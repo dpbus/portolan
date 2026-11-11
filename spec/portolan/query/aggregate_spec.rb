@@ -6,6 +6,7 @@ RSpec.describe Portolan::Query::Aggregate do
   let(:voyages) do
     Class.new(Portolan::Dataset) do
       description 'One row per voyage.'
+      model Voyage
       relation { |fleet| fleet ? Voyage.where(fleet:) : Voyage.all }
       dimension :harbor, 'the harbor the voyage set out from'
       dimension :crew, 'how many sailors were aboard', type: :integer
@@ -36,6 +37,7 @@ RSpec.describe Portolan::Query::Aggregate do
     seen = timeouts_seen
     Class.new(Portolan::Dataset) do
       description 'One row per voyage.'
+      model Voyage
       relation { Voyage.all }
       dimension :checked, 'whether the guard was on', buckets: {
         yes: -> { seen << Voyage.connection.select_value('SHOW statement_timeout') && Voyage.all },
@@ -44,10 +46,11 @@ RSpec.describe Portolan::Query::Aggregate do
     end
   end
 
-  let(:ordered_voyages) do
+  def voyages_from(&relation_block)
     Class.new(Portolan::Dataset) do
-      description 'One row per voyage, in sailing order.'
-      relation { Voyage.order(:departed_at) }
+      description 'One row per voyage.'
+      model Voyage
+      relation(&relation_block)
       dimension :harbor, 'the harbor the voyage set out from'
       measure :voyages, 'number of voyages'
     end
@@ -257,7 +260,7 @@ RSpec.describe Portolan::Query::Aggregate do
     end
 
     it 'groups a relation that has its own order' do
-      ordered = Portolan::Registry.new(voyages: ordered_voyages)
+      ordered = Portolan::Registry.new(voyages: voyages_from { Voyage.order(:departed_at) })
 
       expect(described_class.new(ordered, request(group_by: %w[harbor]), context: nil).call.rows.first)
         .to eq('harbor' => 'Genoa', 'voyages' => 2)
@@ -276,14 +279,9 @@ RSpec.describe Portolan::Query::Aggregate do
     end
 
     it 'ignores a select or limit on the relation, measuring every row' do
-      trimmed = Class.new(Portolan::Dataset) do
-        description 'One row per voyage.'
-        relation { Voyage.select(:id, :harbor).limit(1) }
-        measure :voyages, 'number of voyages'
-      end
+      trimmed = Portolan::Registry.new(voyages: voyages_from { Voyage.select(:id, :harbor).limit(1) })
 
-      expect(described_class.new(Portolan::Registry.new(voyages: trimmed), request, context: nil).call.rows)
-        .to eq([{ 'voyages' => 4 }])
+      expect(described_class.new(trimmed, request, context: nil).call.rows).to eq([{ 'voyages' => 4 }])
     end
 
     it 'applies filters inside the guard, so bucket conditions run with its settings' do

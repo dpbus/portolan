@@ -6,7 +6,8 @@ RSpec.describe Portolan::Dataset do
   subject(:voyages) do
     Class.new(described_class) do
       description 'One row per voyage.'
-      relation { |context| [:voyages_for, context] }
+      model Voyage
+      relation { |fleet| Voyage.where(fleet:) }
       dimension :harbor, 'the harbor the voyage set out from'
       dimension :departed_at, 'when the ship set sail', type: :datetime
       measure :voyages, 'number of voyages'
@@ -23,13 +24,40 @@ RSpec.describe Portolan::Dataset do
 
   describe '.relation_for' do
     it 'calls the relation with the context' do
-      expect(voyages.relation_for(:genoese_fleet)).to eq(%i[voyages_for genoese_fleet])
+      expect(voyages.relation_for('genoa').where_values_hash).to eq('fleet' => 'genoa')
     end
 
     it 'calls a relation that takes no context' do
-      every_voyage = Class.new(described_class) { relation { :every_voyage } }
+      afloat = Class.new(described_class) do
+        model Voyage
+        relation { Voyage.where(lost: false) }
+      end
 
-      expect(every_voyage.relation_for(:genoese_fleet)).to eq(:every_voyage)
+      expect(afloat.relation_for('genoa').where_values_hash).to eq('lost' => false)
+    end
+
+    it 'uses every row of the model without a relation' do
+      expect(Class.new(described_class) { model Voyage }.relation_for(nil).to_sql).to eq(Voyage.all.to_sql)
+    end
+
+    it 'raises for a relation of another model' do
+      ships = Class.new(described_class) do
+        model Voyage
+        relation { Ship.all }
+      end
+
+      expect { ships.relation_for(nil) }
+        .to raise_error(ArgumentError, 'dataset `anonymous`: relation must return a relation of `Voyage`')
+    end
+
+    it 'raises for something other than a relation' do
+      list = Class.new(described_class) do
+        model Voyage
+        relation { [] }
+      end
+
+      expect { list.relation_for(nil) }
+        .to raise_error(ArgumentError, 'dataset `anonymous`: relation must return a relation of `Voyage`')
     end
   end
 
@@ -155,8 +183,8 @@ RSpec.describe Portolan::Dataset do
       end
     end
 
-    context 'without a relation' do
-      subject(:no_relation) do
+    context 'without a model' do
+      subject(:no_model) do
         Class.new(described_class) do
           description 'One row per voyage.'
           measure :voyages, 'number of voyages'
@@ -164,7 +192,43 @@ RSpec.describe Portolan::Dataset do
       end
 
       it 'raises' do
-        expect { no_relation.check! }.to raise_error(ArgumentError, 'dataset `anonymous`: needs a relation')
+        expect { no_model.check! }
+          .to raise_error(ArgumentError, 'dataset `anonymous`: needs a model, an ActiveRecord class')
+      end
+    end
+
+    it 'does not look at columns, so it needs no database' do
+      voyages.measure :distance_sailed, 'distance sailed', sum: :leauges
+
+      expect { voyages.check! }.not_to raise_error
+    end
+
+    context 'with a join through a has_many' do
+      it 'raises' do
+        ships = Class.new(described_class) do
+          description 'One row per ship.'
+          model Ship
+          dimension :harbor, 'a harbor it sailed from', joins: :voyages, expression: 'voyages.harbor'
+          measure :ships, 'number of ships'
+        end
+
+        expect { ships.check! }.to raise_error(ArgumentError, /`voyages` is a has_many/)
+      end
+    end
+
+    context 'with a join through a polymorphic association' do
+      it 'raises' do
+        voyages.dimension :patron_name, 'who paid for the voyage', joins: :patron, expression: 'patrons.name'
+
+        expect { voyages.check! }.to raise_error(ArgumentError, /`patron` is polymorphic, and Rails cannot join it/)
+      end
+    end
+
+    context 'with a join through an association the model lacks' do
+      it 'raises' do
+        voyages.dimension :flag, 'the flag', joins: :shipp, expression: 'ships.flag'
+
+        expect { voyages.check! }.to raise_error(ArgumentError, /`Voyage` has no association `shipp`/)
       end
     end
 
@@ -172,13 +236,45 @@ RSpec.describe Portolan::Dataset do
       subject(:no_measure) do
         Class.new(described_class) do
           description 'One row per voyage.'
-          relation { :every_voyage }
+          model Voyage
         end
       end
 
       it 'raises' do
         expect { no_measure.check! }.to raise_error(ArgumentError, 'dataset `anonymous`: needs at least one measure')
       end
+    end
+  end
+
+  describe '.check_columns!' do
+    context 'with a measure column the model lacks' do
+      it 'raises' do
+        voyages.measure :distance, 'distance sailed', sum: :leauges
+
+        expect { voyages.check_columns! }.to raise_error(ArgumentError,
+          'dataset `anonymous`: measure `distance`: `leauges` is not a column of `Voyage`')
+      end
+    end
+
+    context 'with a dimension column the model lacks' do
+      it 'raises' do
+        voyages.dimension :harbour, 'the harbor'
+
+        expect { voyages.check_columns! }
+          .to raise_error(ArgumentError, /dimension `harbour`: `harbour` is not a column of `Voyage`/)
+      end
+    end
+
+    it 'accepts an aliased attribute' do
+      voyages.measure :distance, 'distance sailed', sum: :distance
+
+      expect { voyages.check_columns! }.not_to raise_error
+    end
+
+    it 'runs on the first query' do
+      voyages.dimension :harbour, 'the harbor'
+
+      expect { voyages.relation_for('genoa') }.to raise_error(ArgumentError, /`harbour` is not a column of `Voyage`/)
     end
   end
 end

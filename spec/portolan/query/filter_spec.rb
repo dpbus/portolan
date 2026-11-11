@@ -6,6 +6,7 @@ RSpec.describe Portolan::Query::Filter do
   let(:dataset) do
     Class.new(Portolan::Dataset) do
       description 'One row per voyage.'
+      model Voyage
       relation { Voyage.all }
       dimension :harbor, 'the harbor the voyage set out from'
       dimension :fleet, 'the fleet the ship sailed with', values: %w[genoa venice]

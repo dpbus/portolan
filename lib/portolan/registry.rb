@@ -22,6 +22,11 @@ module Portolan
       { name: name.to_s, **dataset.describe } if dataset
     end
 
+    def check!
+      @datasets.each_value(&:check_columns!)
+      self
+    end
+
     def aggregate(params, context:)
       Query::Aggregate.new(self, normalize(params), context:).call
     end

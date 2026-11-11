@@ -8,7 +8,7 @@ RSpec.describe Portolan::Registry do
   let(:voyages) do
     Class.new(Portolan::Dataset) do
       description 'One row per voyage.'
-      relation { :every_voyage }
+      model Voyage
       dimension :harbor, 'the harbor the voyage set out from'
       measure :voyages, 'number of voyages'
     end
@@ -17,7 +17,7 @@ RSpec.describe Portolan::Registry do
   let(:cargo) do
     Class.new(Portolan::Dataset) do
       description 'One row per cargo hold.'
-      relation { :every_hold }
+      model Voyage
       measure :tons, 'tons of cargo carried', sum: :tons
     end
   end
@@ -73,6 +73,29 @@ RSpec.describe Portolan::Registry do
     end
   end
 
+  describe '#check!' do
+    let(:misspelled) do
+      Class.new(Portolan::Dataset) do
+        description 'One row per voyage.'
+        model Voyage
+        measure :leagues, 'distance sailed', sum: :leauges
+      end
+    end
+
+    it 'leaves column checks out of building, so building needs no database' do
+      expect { described_class.new(voyages: misspelled) }.not_to raise_error
+    end
+
+    it 'checks every column on demand' do
+      expect { described_class.new(voyages: misspelled).check! }
+        .to raise_error(ArgumentError, 'dataset `anonymous`: measure `leagues`: `leauges` is not a column of `Voyage`')
+    end
+
+    it 'returns the registry when every column exists' do
+      expect(registry.check!).to be(registry)
+    end
+  end
+
   describe '#names' do
     it 'returns the names as strings, in registered order' do
       expect(registry.names).to eq(%w[voyages cargo])
@@ -125,6 +148,7 @@ RSpec.describe Portolan::Registry do
     let(:fleet_voyages) do
       Class.new(Portolan::Dataset) do
         description 'One row per voyage.'
+        model Voyage
         relation { |fleet| fleet ? Voyage.where(fleet:) : Voyage.all }
         dimension :harbor, 'the harbor the voyage set out from'
         dimension :fleet, 'the fleet the ship sailed with', values: %w[genoa venice]
