@@ -1,0 +1,45 @@
+# frozen_string_literal: true
+
+module Portolan
+  class Registry
+    NAME = /\A[a-z][a-z0-9_]*\z/
+
+    def initialize(datasets)
+      @datasets = build(datasets)
+      freeze
+    end
+
+    def names = @datasets.keys
+    def [](name) = @datasets[name.to_s]
+
+    def list
+      @datasets.map { |name, dataset| { name:, description: dataset.description } }
+    end
+
+    def describe(name)
+      dataset = self[name]
+      { name: name.to_s, **dataset.describe } if dataset
+    end
+
+    private
+
+    def build(datasets)
+      invalid!('needs a hash of names to datasets') unless datasets.is_a?(Hash) && datasets.any?
+      duplicate = datasets.keys.map(&:to_s).tally.find { |_, count| count > 1 }&.first
+      invalid!("dataset `#{duplicate}` is registered twice") if duplicate
+
+      datasets.to_h { |name, dataset| [name.to_s, checked(name.to_s, dataset)] }.freeze
+    end
+
+    def checked(name, dataset)
+      invalid!("dataset name `#{name}` must be lower case letters, digits and underscores") unless name.match?(NAME)
+      invalid!("dataset `#{name}` is not a Portolan::Dataset") unless dataset.is_a?(Class) && dataset < Dataset
+      dataset.check!
+      dataset
+    end
+
+    def invalid!(problem)
+      raise ArgumentError, "registry: #{problem}"
+    end
+  end
+end
