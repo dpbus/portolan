@@ -3,11 +3,6 @@
 module Portolan
   class Dimension
     OPTIONS = %i[type values joins expression buckets].freeze
-    BUCKET_OPTIONS = %i[where description].freeze
-
-    Bucket = Data.define(:name, :where, :description) do
-      def callable? = where.respond_to?(:call)
-    end
 
     attr_reader :name, :description, :type, :joins, :expression, :buckets
 
@@ -18,7 +13,7 @@ module Portolan
       @joins = options[:joins]
       @expression = options[:expression]
       @buckets = build_buckets(options[:buckets])
-      @type = build_type(options.fetch(:type, :string), options[:values])
+      @type = build_type(options)
       freeze
     end
 
@@ -46,43 +41,40 @@ module Portolan
 
     private
 
-    def build_type(type_name, values)
+    def build_type(options)
+      type_name = options.fetch(:type, :string)
       unless Type::NAMES.include?(type_name)
         invalid!("unknown type `#{type_name.inspect}` (allowed: #{Type::NAMES.map(&:inspect).join(', ')})")
       end
-      return bucket_type(type_name, values) if buckets?
-      return Type.for(type_name) if values.nil?
+      return bucket_type(type_name, options) if buckets?
+      return Type.for(type_name) if options[:values].nil?
 
-      invalid!('values must be a non-empty array') unless values.is_a?(Array) && values.any?
+      invalid!('values must be a non-empty array') unless options[:values].is_a?(Array) && options[:values].any?
       invalid!('values are only for `:string`') unless type_name == :string
-      Type::Enum.new(values)
+      Type::Enum.new(options[:values])
     end
 
-    def bucket_type(type_name, values)
+    def bucket_type(type_name, options)
       invalid!('buckets are always `:string`') unless type_name == :string
-      invalid!('buckets cannot have `values`, `joins`, or `expression`') if values || joins || expression
+      invalid!('buckets cannot have `values`, `joins`, or `expression`') if options[:values] || joins || expression
       Type::Enum.new(buckets.keys)
     end
 
-    def build_buckets(buckets)
-      return if buckets.nil?
+    def build_buckets(bucket_options)
+      return if bucket_options.nil?
 
-      invalid!('buckets must be a hash of names to conditions') unless buckets.is_a?(Hash)
-      invalid!('needs at least one bucket') if buckets.empty?
-      duplicate = buckets.keys.map(&:to_s).tally.find { |_, count| count > 1 }&.first
+      invalid!('buckets must be a hash of names to conditions') unless bucket_options.is_a?(Hash)
+      invalid!('needs at least one bucket') if bucket_options.empty?
+      duplicate = bucket_options.keys.map(&:to_s).tally.find { |_, count| count > 1 }&.first
       invalid!("bucket `#{duplicate}` is declared twice") if duplicate
 
-      buckets.to_h { |bucket_name, options| [bucket_name.to_s, build_bucket(bucket_name.to_s, options)] }.freeze
+      bucket_options.to_h { |bucket_name, options| [bucket_name.to_s, build_bucket(bucket_name, options)] }.freeze
     end
 
     def build_bucket(bucket_name, options)
-      options = { where: options } unless options.is_a?(Hash)
-      unknown = options.keys - BUCKET_OPTIONS
-      invalid!("bucket `#{bucket_name}`: unknown option `#{unknown.map(&:inspect).join('`, `')}`") if unknown.any?
-
-      bucket = Bucket.new(name: bucket_name, where: options[:where], description: options[:description].presence)
-      invalid!("bucket `#{bucket_name}`: needs a `where` that responds to `call`") unless bucket.callable?
-      bucket
+      Bucket.new(bucket_name, options)
+    rescue ArgumentError => e
+      invalid!(e.message)
     end
 
     def bucket_descriptions
