@@ -184,11 +184,15 @@ in Ruby).
 - Dimensions cannot join through a `has_many` or a polymorphic association; see
   the grain rule above.
 - The timeout applies to each SQL statement, not to the whole request. Grouping
-  by buckets runs one statement per bucket combination.
+  by buckets runs one or two statements per bucket combination.
+- Without a date dimension, the database sorts the groups by the measure and
+  returns at most the row limit, largest first; a second statement counts
+  them for the truncation note. A series loads every group, up to the group
+  limit, so it can keep whole periods.
 - Your `relation` block runs before Portolan's guard is in place, so it should
   build a relation, not run queries itself.
-- The timeout (5 seconds), row limit (50), group limit (10,000), and number of
-  bucket combinations (50) are fixed for now.
+- The timeout (5 seconds), row limit (50), group limit for series (10,000), and
+  number of bucket combinations (50) are fixed for now.
 
 ## Why the name?
 

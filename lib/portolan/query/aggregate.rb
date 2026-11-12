@@ -76,26 +76,26 @@ module Portolan
       def period = @params['period']
 
       def answer(scope)
-        rows = measured_rows(scope)
+        rows, total_rows = measured_rows(scope)
         raise Refused, TOO_MANY_GROUPS if rows.size > GROUP_LIMIT
 
-        rows = sorted(rows)
-        Result.new(request:, rows: trimmed(rows), definitions:, total_rows: rows.size)
+        Result.new(request:, rows: trimmed(sorted(rows)), definitions:, total_rows:)
       end
 
       def measured_rows(scope)
         bucket_dimensions, column_dimensions = group_dimensions.partition(&:buckets?)
         rows = []
+        total_rows = 0
 
         bucket_combinations(bucket_dimensions).each do |combination|
           narrowed = combination.reduce(scope) { |current, (_dimension, bucket)| bucket.apply(current) }
           bucket_labels = combination.to_h { |dimension, bucket| [dimension.name, bucket.name] }
-          grouped_values(narrowed, column_dimensions).each do |keys, value|
-            rows << row(bucket_labels, column_dimensions.zip(keys), value)
-          end
+          values, group_count = grouped_values(narrowed, column_dimensions)
+          values.each { |keys, value| rows << row(bucket_labels, column_dimensions.zip(keys), value) }
+          total_rows += group_count
           break if rows.size > GROUP_LIMIT
         end
-        rows
+        [rows, total_rows]
       end
 
       def bucket_combinations(dimensions)
@@ -112,14 +112,30 @@ module Portolan
       end
 
       def grouped_values(scope, dimensions)
-        return [[[], measure.call(scope)]] if dimensions.empty?
+        return [[[[], measure.call(scope)]], 1] if dimensions.empty?
 
-        grouped = dimensions.reduce(scope) do |current, dimension|
+        grouped = grouped_scope(scope, dimensions)
+        return largest_first(grouped, dimensions) unless time_dimension
+
+        values = keyed(measure.call(grouped.limit(GROUP_LIMIT + 1)), dimensions)
+        [values, values.size]
+      end
+
+      def grouped_scope(scope, dimensions)
+        dimensions.reduce(scope) do |current, dimension|
           current = dimension.join(current)
           current.group(group_expression(current, dimension))
         end
-        measure.call(grouped.limit(GROUP_LIMIT + 1)).map { |keys, value| [dimensions.one? ? [keys] : keys, value] }
       end
+
+      def largest_first(grouped, dimensions)
+        largest = grouped.order(measure.node(grouped).desc.nulls_last).limit(limit)
+        [keyed(measure.call(largest), dimensions), group_count(grouped)]
+      end
+
+      def group_count(grouped) = grouped.klass.unscoped.from(grouped.select(Arel.sql('1')), :groups).count
+
+      def keyed(values, dimensions) = values.map { |keys, value| [dimensions.one? ? [keys] : keys, value] }
 
       def group_expression(scope, dimension) = dimension.type.group(dimension.column(scope), period)
 

@@ -26,6 +26,7 @@ RSpec.describe Portolan::Query::Aggregate do
       measure :ships, 'number of ships that sailed', count_distinct: :ship_id
       measure :leagues, 'distance sailed, in leagues', sum: :leagues
       measure :crew_size, 'average crew aboard', average: :crew
+      measure :tonnage, 'cargo carried, in tons', sum: :tons
     end
   end
 
@@ -81,12 +82,12 @@ RSpec.describe Portolan::Query::Aggregate do
 
     it 'reports a missing measure' do
       expect(errors({ 'dataset' => 'voyages' }))
-        .to eq(['measure is required; allowed: `voyages`, `ships`, `leagues`, `crew_size`'])
+        .to eq(['measure is required; allowed: `voyages`, `ships`, `leagues`, `crew_size`, `tonnage`'])
     end
 
     it 'reports an unknown measure' do
       expect(errors(request(measure: 'cargo')))
-        .to eq(['unknown measure `cargo`; allowed: `voyages`, `ships`, `leagues`, `crew_size`'])
+        .to eq(['unknown measure `cargo`; allowed: `voyages`, `ships`, `leagues`, `crew_size`, `tonnage`'])
     end
 
     it 'reports a group_by that is not a list' do
@@ -303,11 +304,36 @@ RSpec.describe Portolan::Query::Aggregate do
       expect { aggregate(request(group_by: %w[misspelled])) }.to raise_error(ActiveRecord::StatementInvalid, /crw/)
     end
 
-    it 'reports too many groups instead of loading them all' do
+    it 'reports too many groups in a series instead of loading them all' do
       stub_const('Portolan::Query::Aggregate::GROUP_LIMIT', 1)
 
-      expect(errors(request(group_by: %w[harbor])))
+      expect(errors(request(group_by: %w[departed_at], period: 'month')))
         .to eq(['more than 10000 groups; filter or group by fewer dimensions'])
+    end
+
+    it 'loads only the largest groups when there is no date dimension' do
+      stub_const('Portolan::Query::Aggregate::GROUP_LIMIT', 1)
+
+      expect(rows(request(group_by: %w[harbor], limit: 1))).to eq([{ 'harbor' => 'Genoa', 'voyages' => 2 }])
+    end
+
+    it 'still counts every group for the truncation note' do
+      result = aggregate(request(group_by: %w[harbor], measure: 'leagues', limit: 1), context: nil)
+
+      expect([result.rows, result.notes]).to eq([[{ 'harbor' => 'Venice', 'leagues' => 4000 }],
+                                                 ['Showing the largest 1 of 3 rows.']])
+    end
+
+    it 'keeps the largest rows across bucket combinations' do
+      result = aggregate(request(group_by: %w[fate harbor], measure: 'leagues', limit: 1), context: nil)
+
+      expect([result.rows, result.total_rows])
+        .to eq([[{ 'fate' => 'arrived', 'harbor' => 'Venice', 'leagues' => 4000 }], 3])
+    end
+
+    it 'puts groups with nothing to sum last' do
+      expect(rows(request(group_by: %w[harbor], measure: 'tonnage', limit: 1)))
+        .to eq([{ 'harbor' => 'Caffa', 'tonnage' => 120.5 }])
     end
 
     it 'builds the relation for the context once' do

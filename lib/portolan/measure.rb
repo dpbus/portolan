@@ -24,6 +24,15 @@ module Portolan
       end
     end
 
+    def node(scope)
+      case aggregate
+      when :count then Arel.star.count
+      when :count_distinct then scope.arel_table[column].count(true)
+      when :sum then scope.arel_table[column].sum
+      when :average then scope.arel_table[column].average
+      end
+    end
+
     def describe = { name:, description: }
     def label(value) = value.is_a?(::BigDecimal) ? value.to_f : value
 
