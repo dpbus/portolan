@@ -1,5 +1,7 @@
 # Portolan
 
+[![CI](https://github.com/dpbus/portolan/actions/workflows/ci.yml/badge.svg)](https://github.com/dpbus/portolan/actions/workflows/ci.yml)
+
 Let LLMs and reporting tools query your Rails data safely: only the datasets,
 dimensions, and measures you declare.
 
